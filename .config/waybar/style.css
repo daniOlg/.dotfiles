@@ -8,7 +8,7 @@ window#waybar {
     background-color: transparent;
 }
 
-#workspaces, #clock, #pulseaudio, #tray {
+#workspaces, #clock, #pulseaudio, #tray, #custom-notification {
     background-color: rgba(30, 30, 46, 0.85);
     color: #cdd6f4;
     border-radius: 15px;
@@ -31,4 +31,8 @@ window#waybar {
 
 #clock {
     color: #f9e2af;
+}
+
+#custom-notification {
+    color: #f5c2e7;
 }
