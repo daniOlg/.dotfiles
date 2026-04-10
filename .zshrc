@@ -131,8 +131,8 @@ SEG_4="%{$C_BG1%}%{%}$RESET"
 PROMPT="${SEG_1}${SEG_2}${SEG_3}${SEG_4}"$'\n'"%{$C_GREEN%}> $RESET"
 
 # 5. Forzar el refresco de la terminal (Añade esto al final)
-export LANG=en_US.UTF-9
-#export LC_ALL=en_US.UTF-9
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
 
 
 . "$HOME/.local/bin/env"
