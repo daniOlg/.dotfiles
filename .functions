@@ -1,0 +1,227 @@
+# ~/.functions — custom shell functions (zsh)
+
+# Commit everything in the working tree.
+#
+# Usage:
+#   commit                    -> stages everything and generates the commit
+#                                message with claude from the staged diff
+#   commit "fix: my message"  -> stages everything and commits with the
+#                                given message
+#
+# What it does:
+#   1. Stages all changes (git add .).
+#   2. Message: the one given as argument, or generated with claude
+#      (model haiku) from the staged diff, single-line, in english,
+#      lowercase, format 'feat/fix: my commit message'.
+#   3. Commits (subject only, no body).
+#
+# Requires: claude CLI.
+# ----- START OF CODE: COMMIT FUNCTION ---
+function commit() {
+  commitMessage="$*"
+
+  # git add .
+
+  if [ "$commitMessage" = "" ]; then
+    # Start spinner in background (suppress job control messages)
+    {
+      spinner="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+      while true; do
+        for (( i=0; i<${#spinner}; i++ )); do
+          printf "\r${spinner:$i:1} Generating commit message..."
+          sleep 0.1
+        done
+      done
+    } &!
+    spinner_pid=$!
+
+    # Cleanup function for interrupt
+    cleanup() {
+      { kill $spinner_pid; wait $spinner_pid; } 2>/dev/null
+      printf "\r\033[K"
+      trap - INT
+      return 1
+    }
+    trap cleanup INT
+
+    # # Get diff with size limit, include stat summary for context
+    diff_input=$(echo "=== Summary ===" && git diff --cached --stat && echo -e "\n=== Diff (truncated if large) ===" && git diff --cached | head -c 50000)
+
+    # Generate commit message
+    commitMessage=$(echo "$diff_input" | claude --model haiku --effort medium -p --no-session-persistence "Write a single-line commit message for this diff. Message must be in english, lowercase and with the format: 'feat/fix: my commit message'. Output ONLY the message, no quotes, no explanation, no markdown.")
+
+    # Stop spinner and clear line
+    trap - INT
+    { kill $spinner_pid; wait $spinner_pid; } 2>/dev/null
+    printf "\r\033[K"
+
+    git commit -m "$commitMessage"
+    return
+  fi
+
+  eval "git commit -a -m '${commitMessage}'"
+}
+# ----- END OF CODE: COMMIT FUNCTION -----
+
+
+
+
+# Create an Azure DevOps Pull Request from the current branch.
+#
+# Usage:
+#   pr                          -> PR to 'develop'
+#   pr qa                       -> PR to 'qa'
+#   pr develop "title"          -> PR to 'develop' with a custom title
+#   pr develop --id OVD-138     -> appends the Jira task link to the
+#                                  description (after the commit list)
+#   pr --id idi-1023            -> flags work anywhere; id is uppercased
+#
+# What it does:
+#   1. Pushes the current branch to origin (sets upstream).
+#   2. Fetches the target branch.
+#   3. Builds the description with ONLY the list of added commits,
+#      plus the Jira task link if --id was given.
+#   4. Title: custom if given; the commit subject if there is a single
+#      commit; otherwise generated with claude (same style as commit()).
+#   5. Creates the PR via Azure DevOps REST API and prints its URL.
+#
+# Requires: ~/.azure-devops-pat with a PAT (scope: Code Read & Write),
+# python3, curl, and 'origin' pointing to dev.azure.com.
+# ----- START OF CODE: PR FUNCTION -----
+function pr() {
+  local target="" title="" jiraId=""
+
+  # Parse args: positionals are <target> [title], --id <JIRA-ID> is optional
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --id)
+        if [ -z "$2" ]; then
+          echo "✗ --id requires a value (e.g. --id OVD-138)"
+          return 1
+        fi
+        jiraId="${2:u}"
+        shift 2
+        ;;
+      *)
+        if [ -z "$target" ]; then
+          target="$1"
+        elif [ -z "$title" ]; then
+          title="$1"
+        else
+          echo "✗ Unexpected argument: $1"
+          return 1
+        fi
+        shift
+        ;;
+    esac
+  done
+  target="${target:-develop}"
+
+  local branch=$(git branch --show-current)
+  if [ -z "$branch" ]; then
+    echo "✗ Not on a branch (detached HEAD)"
+    return 1
+  fi
+  if [ "$branch" = "$target" ]; then
+    echo "✗ Current branch IS the target branch ('$target')"
+    return 1
+  fi
+
+  local patFile="$HOME/.azure-devops-pat"
+  if [ ! -f "$patFile" ]; then
+    echo "✗ Missing $patFile (Azure DevOps PAT, scope: Code Read & Write)"
+    return 1
+  fi
+  local pat=$(cat "$patFile")
+
+  # Derive API base from origin: https://[user@]dev.azure.com/{org}/{project}/_git/{repo}
+  local remoteUrl=$(git remote get-url origin)
+  local apiBase=$(echo "$remoteUrl" | sed -E 's#https://([^@/]+@)?dev\.azure\.com/([^/]+)/([^/]+)/_git/([^/]+)#https://dev.azure.com/\2/\3/_apis/git/repositories/\4#')
+  if [ "$apiBase" = "$remoteUrl" ]; then
+    echo "✗ 'origin' is not an Azure DevOps repo: $remoteUrl"
+    return 1
+  fi
+
+  echo "→ Pushing $branch to origin..."
+  git push -u origin "$branch" || return 1
+  git fetch origin "$target" --quiet || {
+    echo "✗ Could not fetch origin/$target (does the branch exist?)"
+    return 1
+  }
+
+  # Description: only the list of added commits
+  local commits=$(git log --format="- %s" "origin/$target..HEAD")
+  if [ -z "$commits" ]; then
+    echo "✗ No commits between origin/$target and HEAD"
+    return 1
+  fi
+
+  if [ -z "$title" ]; then
+    local commitCount=$(echo "$commits" | wc -l)
+    if [ "$commitCount" -eq 1 ]; then
+      title="${commits#- }"
+    else
+      # Start spinner in background (suppress job control messages)
+      {
+        spinner="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+        while true; do
+          for (( i=0; i<${#spinner}; i++ )); do
+            printf "\r${spinner:$i:1} Generating PR title..."
+            sleep 0.1
+          done
+        done
+      } &!
+      local spinner_pid=$!
+
+      # Cleanup function for interrupt
+      cleanup() {
+        { kill $spinner_pid; wait $spinner_pid; } 2>/dev/null
+        printf "\r\033[K"
+        trap - INT
+        return 1
+      }
+      trap cleanup INT
+
+      title=$(echo "$commits" | claude --model haiku --effort medium -p --no-session-persistence "Write a single-line pull request title that summarizes these commits. Title must be in english, lowercase and with the format: 'feat/fix: my title'. Output ONLY the title, no quotes, no explanation, no markdown.")
+
+      # Stop spinner and clear line
+      trap - INT
+      { kill $spinner_pid; wait $spinner_pid; } 2>/dev/null
+      printf "\r\033[K"
+    fi
+  fi
+
+  # Description: commit list + optional Jira task link
+  local description="$commits"
+  if [ -n "$jiraId" ]; then
+    local jiraUrl="https://jiraotic.atlassian.net/browse/$jiraId"
+    description="$commits
+
+[$jiraUrl]($jiraUrl)"
+  fi
+
+  # Build JSON safely (escaping) and create the PR
+  local body=$(BRANCH="$branch" TARGET="$target" TITLE="$title" DESCRIPTION="$description" python3 -c '
+import json, os
+print(json.dumps({
+    "sourceRefName": "refs/heads/" + os.environ["BRANCH"],
+    "targetRefName": "refs/heads/" + os.environ["TARGET"],
+    "title": os.environ["TITLE"],
+    "description": os.environ["DESCRIPTION"],
+}))')
+
+  curl -s -u ":$pat" -X POST -H "Content-Type: application/json" \
+    -d "$body" "$apiBase/pullrequests?api-version=7.1" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+pr_id = d.get("pullRequestId")
+if pr_id:
+    web = d.get("repository", {}).get("webUrl", "")
+    print("✓ PR #%s created: %s" % (pr_id, d.get("title")))
+    if web:
+        print("  %s/pullrequest/%s" % (web, pr_id))
+else:
+    print("✗ %s" % d.get("message", d))
+    sys.exit(1)'
+}
+# ----- END OF CODE: PR FUNCTION -----

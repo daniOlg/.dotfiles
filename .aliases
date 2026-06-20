@@ -1,0 +1,29 @@
+# utils
+# alias c="clear"
+alias v="nvim"
+# genera un API-KEY (UUID en mayúsculas)
+alias gen-api-key="node -e \"console.log(require('crypto').randomUUID().toUpperCase())\""
+
+# git (complementa el plugin git de oh-my-zsh: gst, ga, gp, glog...)
+alias uncommit="git reset --soft HEAD~1"
+
+# pnpm
+alias p="pnpm"
+alias pi="pnpm install"
+alias pd="pnpm run start:dev"
+alias pt="pnpm run test"
+alias pb="pnpm run build"
+alias pl="pnpm run lint"
+
+# docker
+alias dcu="docker compose up -d" # up detached
+alias dcd="docker compose down"
+alias dps="docker ps -a" # ps: list containers; ps -a: list all containers (including stopped)
+
+# screen
+alias sc="screen -S"   # create: sc <nombre>
+alias sl="screen -ls"  # list
+alias sa="screen -r"   # attach: sa <nombre>
+alias sr="screen -dRR" # resume: re-attach aunque esté attachada; si no existe, la crea
+
+sk() { screen -S "$1" -X quit; } # kill: sk <nombre>
