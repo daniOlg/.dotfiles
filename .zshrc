@@ -54,9 +54,6 @@ source $HOME/.local/bin/env
 # fnm
 eval "$(fnm env --use-on-cd --shell zsh)"
 
-# dotfiles
-alias dotfiles='/usr/bin/git --git-dir=$HOME/.dotfiles/ --work-tree=$HOME'
-
 # pnpm
 export PNPM_HOME="/home/dani/.local/share/pnpm"
 case ":$PATH:" in
