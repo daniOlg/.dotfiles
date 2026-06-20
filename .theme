@@ -1,4 +1,5 @@
 # 1. Habilitar funciones necesarias
+setopt COMBINING_CHARS
 setopt PROMPT_SUBST
 
 # 2. Definición de colores Gruvbox (Limpios)
