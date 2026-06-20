@@ -31,7 +31,7 @@ case ":$PATH:" in
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 
-# custom things ~/.functions, ~/.exports, ~/.aliases
-for file in ~/.{exports,aliases,functions}; do
+# custom things ~/.theme, ~/.functions, ~/.exports, ~/.aliases
+for file in ~/.{theme,exports,aliases,functions}; do
 	[ -r "$file" ] && [ -f "$file" ] && source "$file"
 done
