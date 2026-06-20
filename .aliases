@@ -1,3 +1,6 @@
+# dotfiles
+alias dotfiles='/usr/bin/git --git-dir=$HOME/.dotfiles/ --work-tree=$HOME'
+
 # utils
 # alias c="clear"
 alias v="nvim"
