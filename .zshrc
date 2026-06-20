@@ -46,7 +46,7 @@ export LC_ALL=en_US.UTF-8
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
+#eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
 
 # uv
 source $HOME/.local/bin/env
